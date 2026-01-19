@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>无尽冬日-CDKEY兑换</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+            crossorigin="anonymous"></script>
+</head>
+<body>
+    <div class="container">
+        <form>
+            <div class="mb-3">
+                <label for="cdkey" class="form-label">兑换码</label>
+                <input type="email" class="form-control" id="cdkey" aria-describedby="cdkeyHelp">
+                <div id="cdkeyHelp" class="form-text">请输入无尽冬日兑换码</div>
+            </div>
+            <button type="button" onclick="getCdkey()" class="btn btn-primary">兑换</button>
+
+        </form>
+    </div>
+    <div id="showlist" class="container">
+
+    </div>
+
+</body>
+<script type="application/javascript">
+    getCdkey = () => {
+        let cdkeyEle = document.getElementById("cdkey")
+        let cdkey = cdkeyEle.value;
+        // 设置按钮不可用
+        cdkeyEle.disabled = true;
+        fetch(`/giftcode?code=${cdkey}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+        }).then(response => response.json())
+            .then(data => {
+                let msg = data.message
+                drawGrip(msg)
+                cdkeyEle.disabled = false;
+            })
+            .catch(error => {
+                console.error("Error:", error);
+                cdkeyEle.disabled = false;
+            });
+    }
+
+    drawGrip = (msg) => {
+        // 根据/n 分割
+        let rows = msg.split("\n");
+        let container = document.getElementById("showlist")
+        container.innerHTML = ""
+        rows.forEach(row => {
+            let div = document.createElement("div");
+            div.className = "row";
+            div.innerText = row;
+            container.appendChild(div);
+        })
+    }
+</script>
+</html>

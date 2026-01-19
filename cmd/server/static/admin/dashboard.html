@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理后台 - 控制面板</title>
+    <link rel="stylesheet" href="/admin/styles.css">
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmModal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="confirmTitle">确认操作</h3>
+            </div>
+            <div class="modal-body">
+                <p id="confirmMessage">您确定要执行此操作吗？</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeConfirmModal()">取消</button>
+                <button class="btn btn-danger" id="confirmButton">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="header">
+        <h1>礼品码管理系统</h1>
+        <div class="user-info">
+            <span id="username">管理员</span>
+            <button class="logout-btn" onclick="logout()">退出登录</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <aside class="sidebar">
+            <ul class="nav-menu">
+                <li class="nav-item active" data-view="users">用户管理</li>
+                <li class="nav-item" data-view="tasks">任务监控</li>
+                <li class="nav-item" data-view="notifications">通知历史</li>
+            </ul>
+        </aside>
+
+        <main class="main-content">
+            <!-- Users View -->
+            <div id="users-view" class="view active">
+                <div class="view-header">
+                    <h2>用户管理</h2>
+                </div>
+                <div id="users-message" class="message"></div>
+                <div id="users-content"></div>
+            </div>
+
+            <!-- Tasks View -->
+            <div id="tasks-view" class="view">
+                <div class="view-header">
+                    <h2>任务监控</h2>
+                </div>
+                <div id="tasks-message" class="message"></div>
+                <div id="tasks-content"></div>
+            </div>
+
+            <!-- User Details View -->
+            <div id="user-details-view" class="view">
+                <div class="view-header">
+                    <h2>用户兑换记录</h2>
+                    <button class="btn" onclick="showView('users')">返回用户列表</button>
+                </div>
+                <div id="user-details-message" class="message"></div>
+                <div id="user-details-content"></div>
+            </div>
+
+            <!-- Notifications View -->
+            <div id="notifications-view" class="view">
+                <div class="view-header">
+                    <h2>通知历史</h2>
+                </div>
+                <div id="notifications-message" class="message"></div>
+                <div id="notifications-content"></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/admin/dashboard.js"></script>
+</body>
+</html>
