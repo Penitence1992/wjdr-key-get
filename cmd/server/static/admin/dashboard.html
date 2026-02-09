@@ -28,16 +28,20 @@
         </div>
     </div>
 
-    <div class="header">
-        <h1>礼品码管理系统</h1>
+    <div class="header app-header">
+        <div class="brand">
+            <div class="brand-title">礼品码管理系统</div>
+            <div class="brand-subtitle">Admin Console</div>
+        </div>
         <div class="user-info">
-            <span id="username">管理员</span>
+            <span id="username" class="user-name">管理员</span>
             <button class="logout-btn" onclick="logout()">退出登录</button>
         </div>
     </div>
 
-    <div class="container">
-        <aside class="sidebar">
+    <div class="container app-layout">
+        <aside class="sidebar app-sidebar" role="navigation" aria-label="主导航">
+            <div class="nav-title">导航</div>
             <ul class="nav-menu">
                 <li class="nav-item active" data-view="users">用户管理</li>
                 <li class="nav-item" data-view="tasks">任务监控</li>
@@ -45,14 +49,14 @@
             </ul>
         </aside>
 
-        <main class="main-content">
+        <main class="main-content app-main" role="main">
             <!-- Users View -->
             <div id="users-view" class="view active">
                 <div class="view-header">
                     <h2>用户管理</h2>
                 </div>
-                <div id="users-message" class="message"></div>
-                <div id="users-content"></div>
+                <div id="users-message" class="message" aria-live="polite"></div>
+                <div id="users-content" class="view-content"></div>
             </div>
 
             <!-- Tasks View -->
@@ -60,8 +64,14 @@
                 <div class="view-header">
                     <h2>任务监控</h2>
                 </div>
-                <div id="tasks-message" class="message"></div>
-                <div id="tasks-content"></div>
+                <div id="tasks-message" class="message" aria-live="polite"></div>
+                <div id="tasks-content" class="view-content">
+                    <div class="tasks-shell">
+                        <div id="tasks-form-slot"></div>
+                        <div id="tasks-toolbar-slot"></div>
+                        <div class="section-card" data-slot="tasks-table"></div>
+                    </div>
+                </div>
             </div>
 
             <!-- User Details View -->
@@ -70,8 +80,8 @@
                     <h2>用户兑换记录</h2>
                     <button class="btn" onclick="showView('users')">返回用户列表</button>
                 </div>
-                <div id="user-details-message" class="message"></div>
-                <div id="user-details-content"></div>
+                <div id="user-details-message" class="message" aria-live="polite"></div>
+                <div id="user-details-content" class="view-content"></div>
             </div>
 
             <!-- Notifications View -->
@@ -79,8 +89,8 @@
                 <div class="view-header">
                     <h2>通知历史</h2>
                 </div>
-                <div id="notifications-message" class="message"></div>
-                <div id="notifications-content"></div>
+                <div id="notifications-message" class="message" aria-live="polite"></div>
+                <div id="notifications-content" class="view-content"></div>
             </div>
         </main>
     </div>
