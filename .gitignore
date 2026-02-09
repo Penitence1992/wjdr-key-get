@@ -2,3 +2,4 @@ target/
 giftcode.db
 .idea
 config.yaml
+.worktrees/
