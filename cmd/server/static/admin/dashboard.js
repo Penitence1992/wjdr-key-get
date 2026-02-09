@@ -224,6 +224,7 @@ const API_BASE = '/api/admin';
 let currentView = 'users';
 let autoRefreshInterval = null;
 let refreshInterval = 30000; // Default 30 seconds
+let tasksMode = 'current';
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -278,23 +279,32 @@ function changeRefreshInterval(interval) {
     localStorage.setItem('refreshInterval', refreshInterval);
 
     // Restart auto-refresh with new interval
-    if (currentView === 'tasks' && autoRefreshInterval) {
+    if (currentView === 'tasks' && tasksMode === 'current') {
+        startTasksAutoRefresh();
+    }
+}
+
+function startTasksAutoRefresh() {
+    stopTasksAutoRefresh();
+
+    autoRefreshInterval = setInterval(() => {
+        if (currentView === 'tasks' && tasksMode === 'current') {
+            refreshTasksTable();
+        }
+    }, refreshInterval);
+}
+
+function stopTasksAutoRefresh() {
+    if (autoRefreshInterval) {
         clearInterval(autoRefreshInterval);
-        autoRefreshInterval = setInterval(() => {
-            if (currentView === 'tasks') {
-                loadTasksView();
-            }
-        }, refreshInterval);
+        autoRefreshInterval = null;
     }
 }
 
 // Show view
 function showView(viewName) {
     // Clear auto-refresh
-    if (autoRefreshInterval) {
-        clearInterval(autoRefreshInterval);
-        autoRefreshInterval = null;
-    }
+    stopTasksAutoRefresh();
 
     // Update navigation
     document.querySelectorAll('.nav-item').forEach(item => {
@@ -314,10 +324,14 @@ function showView(viewName) {
     // Load view content
     if (viewName === 'users') {
         document.getElementById('users-view').classList.add('active');
-        loadUsersView();
+        refreshUsersTable();
     } else if (viewName === 'tasks') {
         document.getElementById('tasks-view').classList.add('active');
-        loadTasksView();
+        if (tasksMode !== 'current') {
+            loadTasksView();
+        } else {
+            refreshTasksTable();
+        }
     } else if (viewName === 'notifications') {
         document.getElementById('notifications-view').classList.add('active');
         loadNotificationsView();
@@ -369,77 +383,118 @@ function showMessage(viewId, message, type = 'success') {
     }, 5000);
 }
 
-// Load users view
-async function loadUsersView() {
+function isRendered(element) {
+    return element && element.dataset.rendered === 'true';
+}
+
+function markRendered(element) {
+    if (element) {
+        element.dataset.rendered = 'true';
+    }
+}
+
+function renderUsersShell() {
     const contentEl = document.getElementById('users-content');
-    contentEl.innerHTML = '<div class="loading">加载中...</div>';
+    if (isRendered(contentEl)) {
+        return;
+    }
+
+    contentEl.innerHTML = `
+        <div class="section-card">
+            <div class="section-header">
+                <h3>添加用户</h3>
+                <p class="section-subtitle">快速添加需要兑换的用户 FID</p>
+            </div>
+            <form id="add-user-form" onsubmit="addUser(event)">
+                <div class="form-group">
+                    <label>用户ID (FID) *</label>
+                    <input type="text" name="fid" required placeholder="请输入用户FID">
+                </div>
+                <button type="submit" class="btn">添加用户</button>
+            </form>
+        </div>
+
+        <div class="section-card">
+            <div class="section-header">
+                <h3>用户列表</h3>
+                <span id="users-count" class="count-pill">0</span>
+            </div>
+            <div class="table-container" data-slot="users-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>头像</th>
+                            <th>用户ID (FID)</th>
+                            <th>昵称</th>
+                            <th>KID</th>
+                            <th>创建时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="users-table-body"></tbody>
+                </table>
+                <div id="users-empty" class="empty-state">暂无用户</div>
+            </div>
+        </div>
+    `;
+
+    markRendered(contentEl);
+}
+
+async function refreshUsersTable() {
+    const tableBody = document.getElementById('users-table-body');
+    const emptyState = document.getElementById('users-empty');
+    const countEl = document.getElementById('users-count');
+
+    if (!tableBody || !emptyState || !countEl) {
+        renderUsersShell();
+    }
+
+    const bodyEl = document.getElementById('users-table-body');
+    const emptyEl = document.getElementById('users-empty');
+    const counterEl = document.getElementById('users-count');
+
+    if (bodyEl && bodyEl.children.length === 0) {
+        bodyEl.innerHTML = '<tr><td colspan="6" class="text-center">加载中...</td></tr>';
+    }
 
     try {
         const response = await apiRequest('/users');
         const users = response.data.users || [];
 
-        let html = `
-            <div style="margin-bottom: 2rem;">
-                <h3 style="margin-bottom: 1rem;">添加用户</h3>
-                <form id="add-user-form" onsubmit="addUser(event)">
-                    <div class="form-group">
-                        <label>用户ID (FID) *</label>
-                        <input type="text" name="fid" required placeholder="请输入用户FID">
-                    </div>
-                    <button type="submit" class="btn">添加用户</button>
-                </form>
-            </div>
-
-            <h3 style="margin-bottom: 1rem;">用户列表 (${users.length})</h3>
-        `;
+        counterEl.textContent = users.length;
 
         if (users.length === 0) {
-            html += '<div class="empty-state">暂无用户</div>';
-        } else {
-            html += `
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>头像</th>
-                                <th>用户ID (FID)</th>
-                                <th>昵称</th>
-                                <th>KID</th>
-                                <th>创建时间</th>
-                                <th>操作</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-            `;
-
-            users.forEach(user => {
-                const createdAt = user.created_at ? new Date(user.created_at).toLocaleString('zh-CN') : '-';
-                const avatar = user.avatar_image || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="40" height="40"%3E%3Crect fill="%23ddd" width="40" height="40"/%3E%3C/svg%3E';
-                
-                html += `
-                    <tr>
-                        <td><img src="${avatar}" alt="avatar" class="avatar" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22%3E%3Crect fill=%22%23ddd%22 width=%2240%22 height=%2240%22/%3E%3C/svg%3E'"></td>
-                        <td>${user.fid || '-'}</td>
-                        <td>${user.nickname || '-'}</td>
-                        <td>${user.kid || '-'}</td>
-                        <td>${createdAt}</td>
-                        <td><span class="clickable" onclick="showUserDetails('${user.fid}')">查看兑换记录</span></td>
-                    </tr>
-                `;
-            });
-
-            html += `
-                        </tbody>
-                    </table>
-                </div>
-            `;
+            bodyEl.innerHTML = '';
+            emptyEl.style.display = 'block';
+            return;
         }
 
-        contentEl.innerHTML = html;
+        emptyEl.style.display = 'none';
+
+        bodyEl.innerHTML = users.map(user => {
+            const createdAt = user.created_at ? new Date(user.created_at).toLocaleString('zh-CN') : '-';
+            const avatar = user.avatar_image || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="40" height="40"%3E%3Crect fill="%23e2e8f0" width="40" height="40"/%3E%3C/svg%3E';
+
+            return `
+                <tr>
+                    <td><img src="${avatar}" alt="avatar" class="avatar" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22%3E%3Crect fill=%22%23e2e8f0%22 width=%2240%22 height=%2240%22/%3E%3C/svg%3E'"></td>
+                    <td class="mono">${user.fid || '-'}</td>
+                    <td>${user.nickname || '-'}</td>
+                    <td class="mono">${user.kid || '-'}</td>
+                    <td>${createdAt}</td>
+                    <td><span class="clickable" onclick="showUserDetails('${user.fid}')">查看兑换记录</span></td>
+                </tr>
+            `;
+        }).join('');
     } catch (error) {
-        contentEl.innerHTML = '<div class="empty-state">加载失败，请重试</div>';
         showMessage('users', error.message, 'error');
     }
+}
+
+async function loadUsersView() {
+    renderUsersShell();
+    await refreshUsersTable();
 }
 
 // Add user
@@ -482,18 +537,18 @@ async function addUser(event) {
     }
 }
 
-// Load tasks view
-async function loadTasksView() {
-    const contentEl = document.getElementById('tasks-content');
-    contentEl.innerHTML = '<div class="loading">加载中...</div>';
+function renderTasksShell() {
+    const formSlot = document.getElementById('tasks-form-slot');
+    const toolbarSlot = document.getElementById('tasks-toolbar-slot');
+    const tableCard = document.querySelector('#tasks-content [data-slot="tasks-table"]');
 
-    try {
-        const response = await apiRequest('/tasks');
-        const tasks = response.data.tasks || [];
-
-        let html = `
-            <div style="margin-bottom: 2rem;">
-                <h3 style="margin-bottom: 1rem;">添加兑换码</h3>
+    if (formSlot && !isRendered(formSlot)) {
+        formSlot.innerHTML = `
+            <div class="section-card">
+                <div class="section-header">
+                    <h3>添加兑换码</h3>
+                    <p class="section-subtitle">提交后将自动创建兑换任务</p>
+                </div>
                 <form id="add-giftcode-form" onsubmit="addGiftCode(event)">
                     <div class="form-group">
                         <label>兑换码 *</label>
@@ -502,12 +557,36 @@ async function loadTasksView() {
                     <button type="submit" class="btn">添加兑换码</button>
                 </form>
             </div>
+        `;
+        markRendered(formSlot);
+    }
 
-            <div style="margin-bottom: 1rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
-                <h3 style="margin: 0;">任务列表 (${tasks.length})</h3>
-                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                    <label for="refresh-interval" style="font-size: 0.9rem; color: #6c757d;">自动刷新:</label>
-                    <select id="refresh-interval" onchange="changeRefreshInterval(this.value)" style="padding: 0.25rem 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9rem;">
+    renderTasksToolbar();
+    renderTasksTableShell();
+
+    if (tableCard && !isRendered(tableCard)) {
+        markRendered(tableCard);
+    }
+}
+
+function renderTasksToolbar() {
+    const toolbarSlot = document.getElementById('tasks-toolbar-slot');
+    if (!toolbarSlot) {
+        return;
+    }
+
+    if (toolbarSlot.dataset.mode === tasksMode) {
+        return;
+    }
+
+    toolbarSlot.dataset.mode = tasksMode;
+
+    if (tasksMode === 'current') {
+        toolbarSlot.innerHTML = `
+            <div class="section-toolbar">
+                <div class="toolbar-group">
+                    <span class="toolbar-label">自动刷新</span>
+                    <select id="refresh-interval" onchange="changeRefreshInterval(this.value)">
                         <option value="1000" ${refreshInterval === 1000 ? 'selected' : ''}>1秒</option>
                         <option value="2000" ${refreshInterval === 2000 ? 'selected' : ''}>2秒</option>
                         <option value="5000" ${refreshInterval === 5000 ? 'selected' : ''}>5秒</option>
@@ -518,81 +597,183 @@ async function loadTasksView() {
                 <button class="btn btn-secondary" onclick="loadCompletedTasksView()">历史任务</button>
             </div>
         `;
+        return;
+    }
+
+    toolbarSlot.innerHTML = `
+        <div class="section-toolbar">
+            <div class="toolbar-group">
+                <span class="toolbar-label">历史任务</span>
+                <span class="text-muted">最近 100 条</span>
+            </div>
+            <button class="btn btn-secondary" onclick="loadTasksView()">返回当前任务</button>
+        </div>
+    `;
+}
+
+function renderTasksTableShell() {
+    const tableCard = document.querySelector('#tasks-content [data-slot="tasks-table"]');
+    if (!tableCard) {
+        return;
+    }
+
+    if (tableCard.dataset.mode === tasksMode) {
+        return;
+    }
+
+    tableCard.dataset.mode = tasksMode;
+
+    const isCompleted = tasksMode === 'completed';
+    const title = isCompleted ? '历史任务列表' : '任务列表';
+
+    tableCard.innerHTML = `
+        <div class="section-header">
+            <h3>${title}</h3>
+            <span id="tasks-count" class="count-pill">0</span>
+        </div>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>兑换码</th>
+                        <th>状态</th>
+                        <th>重试次数</th>
+                        <th>错误信息</th>
+                        <th>创建时间</th>
+                        <th>完成时间</th>
+                        ${isCompleted ? '<th>操作</th>' : ''}
+                    </tr>
+                </thead>
+                <tbody id="tasks-table-body"></tbody>
+            </table>
+        </div>
+        <div id="tasks-empty" class="empty-state">暂无任务</div>
+    `;
+}
+
+async function refreshTasksTable() {
+    renderTasksShell();
+
+    const tableBody = document.getElementById('tasks-table-body');
+    const emptyState = document.getElementById('tasks-empty');
+    const countEl = document.getElementById('tasks-count');
+
+    if (!tableBody || !emptyState || !countEl) {
+        return;
+    }
+
+    if (tableBody.children.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="6" class="text-center">加载中...</td></tr>';
+    }
+
+    try {
+        const response = await apiRequest('/tasks');
+        const tasks = response.data.tasks || [];
+
+        countEl.textContent = tasks.length;
 
         if (tasks.length === 0) {
-            html += '<div class="empty-state">暂无任务</div>';
-        } else {
-            html += `
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>兑换码</th>
-                                <th>状态</th>
-                                <th>重试次数</th>
-                                <th>错误信息</th>
-                                <th>创建时间</th>
-                                <th>完成时间</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-            `;
-
-            tasks.forEach(task => {
-                const createdAt = task.created_at ? new Date(task.created_at).toLocaleString('zh-CN') : '-';
-                const completedAt = task.completed_at ? new Date(task.completed_at).toLocaleString('zh-CN') : '-';
-                
-                let status = 'pending';
-                let statusText = '待处理';
-                
-                if (task.all_done) {
-                    status = 'completed';
-                    statusText = '已完成';
-                } else if (task.retry_count > 0) {
-                    status = 'failed';
-                    statusText = '失败';
-                } else if (task.retry_count === 0 && !task.all_done) {
-                    status = 'processing';
-                    statusText = '处理中';
-                }
-                
-                const error = task.last_error || '-';
-                
-                html += `
-                    <tr>
-                        <td>${task.code || '-'}</td>
-                        <td><span class="status-badge status-${status}">${statusText}</span></td>
-                        <td>${task.retry_count || 0}</td>
-                        <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${error}">${error}</td>
-                        <td>${createdAt}</td>
-                        <td>${completedAt}</td>
-                    </tr>
-                `;
-            });
-
-            html += `
-                        </tbody>
-                    </table>
-                </div>
-            `;
+            tableBody.innerHTML = '';
+            emptyState.style.display = 'block';
+            return;
         }
 
-        contentEl.innerHTML = html;
+        emptyState.style.display = 'none';
 
-        // Setup auto-refresh with selected interval
-        if (autoRefreshInterval) {
-            clearInterval(autoRefreshInterval);
-        }
-        autoRefreshInterval = setInterval(() => {
-            if (currentView === 'tasks') {
-                loadTasksView();
+        tableBody.innerHTML = tasks.map(task => {
+            const createdAt = task.created_at ? new Date(task.created_at).toLocaleString('zh-CN') : '-';
+            const completedAt = task.completed_at ? new Date(task.completed_at).toLocaleString('zh-CN') : '-';
+
+            let status = 'pending';
+            let statusText = '待处理';
+
+            if (task.all_done) {
+                status = 'completed';
+                statusText = '已完成';
+            } else if (task.retry_count > 0) {
+                status = 'failed';
+                statusText = '失败';
+            } else if (task.retry_count === 0 && !task.all_done) {
+                status = 'processing';
+                statusText = '处理中';
             }
-        }, refreshInterval);
 
+            const error = task.last_error || '-';
+
+            return `
+                <tr>
+                    <td class="mono">${task.code || '-'}</td>
+                    <td><span class="status-badge status-${status}">${statusText}</span></td>
+                    <td class="mono">${task.retry_count || 0}</td>
+                    <td class="truncate" title="${error}">${error}</td>
+                    <td>${createdAt}</td>
+                    <td>${completedAt}</td>
+                </tr>
+            `;
+        }).join('');
     } catch (error) {
-        contentEl.innerHTML = '<div class="empty-state">加载失败，请重试</div>';
         showMessage('tasks', error.message, 'error');
     }
+}
+
+async function refreshCompletedTasksTable() {
+    renderTasksShell();
+
+    const tableBody = document.getElementById('tasks-table-body');
+    const emptyState = document.getElementById('tasks-empty');
+    const countEl = document.getElementById('tasks-count');
+
+    if (!tableBody || !emptyState || !countEl) {
+        return;
+    }
+
+    if (tableBody.children.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="7" class="text-center">加载中...</td></tr>';
+    }
+
+    try {
+        const response = await apiRequest('/tasks/completed?limit=100');
+        const tasks = response.data.tasks || [];
+
+        countEl.textContent = tasks.length;
+
+        if (tasks.length === 0) {
+            tableBody.innerHTML = '';
+            emptyState.style.display = 'block';
+            return;
+        }
+
+        emptyState.style.display = 'none';
+
+        tableBody.innerHTML = tasks.map(task => {
+            const createdAt = task.created_at ? new Date(task.created_at).toLocaleString('zh-CN') : '-';
+            const completedAt = task.completed_at ? new Date(task.completed_at).toLocaleString('zh-CN') : '-';
+            const error = task.last_error || '-';
+
+            return `
+                <tr>
+                    <td class="mono">${task.code || '-'}</td>
+                    <td><span class="status-badge status-completed">已完成</span></td>
+                    <td class="mono">${task.retry_count || 0}</td>
+                    <td class="truncate" title="${error}">${error}</td>
+                    <td>${createdAt}</td>
+                    <td>${completedAt}</td>
+                    <td>${renderTaskDeleteButton(task)}</td>
+                </tr>
+            `;
+        }).join('');
+
+        bindDeleteButtons();
+    } catch (error) {
+        showMessage('tasks', error.message, 'error');
+    }
+}
+
+async function loadTasksView() {
+    tasksMode = 'current';
+    renderTasksShell();
+    await refreshTasksTable();
+    startTasksAutoRefresh();
 }
 
 /**
@@ -609,8 +790,23 @@ function renderTaskDeleteButton(task) {
                     data-task-id="${taskCode}" 
                     data-task-name="${taskName}"
                     style="padding: 0.25rem 0.5rem; font-size: 0.85rem;">
-                🗑️ 删除
+                删除
             </button>`;
+}
+
+function bindDeleteButtons() {
+    const contentEl = document.getElementById('tasks-content');
+    if (!contentEl) {
+        return;
+    }
+
+    contentEl.querySelectorAll('.btn-danger').forEach(button => {
+        button.onclick = (e) => {
+            const taskId = e.currentTarget.dataset.taskId;
+            const taskName = e.currentTarget.dataset.taskName;
+            handleDeleteClick(taskId, taskName);
+        };
+    });
 }
 
 /**
@@ -794,7 +990,7 @@ function showErrorMessage(message) {
  * Refresh completed tasks list
  */
 function refreshCompletedTasks() {
-    loadCompletedTasksView();
+    refreshCompletedTasksTable();
 }
 
 /**
@@ -876,88 +1072,10 @@ async function handleDeleteClick(taskId, taskName) {
 
 // Load completed tasks view
 async function loadCompletedTasksView() {
-    const contentEl = document.getElementById('tasks-content');
-    contentEl.innerHTML = '<div class="loading">加载中...</div>';
-
-    // Clear auto-refresh when viewing completed tasks
-    if (autoRefreshInterval) {
-        clearInterval(autoRefreshInterval);
-        autoRefreshInterval = null;
-    }
-
-    try {
-        const response = await apiRequest('/tasks/completed?limit=100');
-        const tasks = response.data.tasks || [];
-
-        let html = `
-            <div style="margin-bottom: 1rem; display: flex; gap: 1rem; align-items: center;">
-                <h3 style="margin: 0;">历史任务列表 (${tasks.length})</h3>
-                <button class="btn btn-secondary" onclick="loadTasksView()">返回当前任务</button>
-            </div>
-        `;
-
-        if (tasks.length === 0) {
-            html += '<div class="empty-state">暂无历史任务</div>';
-        } else {
-            html += `
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>兑换码</th>
-                                <th>状态</th>
-                                <th>重试次数</th>
-                                <th>错误信息</th>
-                                <th>创建时间</th>
-                                <th>完成时间</th>
-                                <th>操作</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-            `;
-
-            tasks.forEach(task => {
-                const createdAt = task.created_at ? 
-                    new Date(task.created_at).toLocaleString('zh-CN') : '-';
-                const completedAt = task.completed_at ? 
-                    new Date(task.completed_at).toLocaleString('zh-CN') : '-';
-
-                const error = task.last_error || '-';
-
-                html += `
-                    <tr>
-                        <td>${task.code || '-'}</td>
-                        <td><span class="status-badge status-completed">已完成</span></td>
-                        <td>${task.retry_count || 0}</td>
-                        <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${error}">${error}</td>
-                        <td>${createdAt}</td>
-                        <td>${completedAt}</td>
-                        <td>${renderTaskDeleteButton(task)}</td>
-                    </tr>
-                `;
-            });
-
-            html += `
-                        </tbody>
-                    </table>
-                </div>
-            `;
-        }
-
-        contentEl.innerHTML = html;
-        
-        // Bind delete button click events using event delegation
-        contentEl.querySelectorAll('.btn-danger').forEach(button => {
-            button.addEventListener('click', (e) => {
-                const taskId = e.target.dataset.taskId;
-                const taskName = e.target.dataset.taskName;
-                handleDeleteClick(taskId, taskName);
-            });
-        });
-    } catch (error) {
-        contentEl.innerHTML = '<div class="empty-state">加载失败，请重试</div>';
-        showMessage('tasks', error.message, 'error');
-    }
+    tasksMode = 'completed';
+    stopTasksAutoRefresh();
+    renderTasksShell();
+    await refreshCompletedTasksTable();
 }
 
 // Add gift code
@@ -1002,142 +1120,184 @@ async function addGiftCode(event) {
     }
 }
 
+function renderUserDetailsShell(fid) {
+    const contentEl = document.getElementById('user-details-content');
+    contentEl.innerHTML = `
+        <div class="section-header">
+            <h3>用户 <span class="mono">${fid}</span> 的兑换记录</h3>
+            <span id="user-details-count" class="count-pill">0</span>
+        </div>
+        <div class="table-container" data-slot="user-details-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>激活码</th>
+                        <th>状态</th>
+                        <th>兑换时间</th>
+                        <th>结果</th>
+                    </tr>
+                </thead>
+                <tbody id="user-details-table-body"></tbody>
+            </table>
+        </div>
+        <div id="user-details-empty" class="empty-state">该用户暂无兑换记录</div>
+    `;
+}
+
+async function refreshUserDetailsTable(fid) {
+    const bodyEl = document.getElementById('user-details-table-body');
+    const emptyEl = document.getElementById('user-details-empty');
+    const countEl = document.getElementById('user-details-count');
+
+    if (!bodyEl || !emptyEl || !countEl) {
+        return;
+    }
+
+    bodyEl.innerHTML = '<tr><td colspan="4" class="text-center">加载中...</td></tr>';
+
+    try {
+        const response = await apiRequest(`/users/${fid}/codes`);
+        const records = response.data.records || [];
+
+        countEl.textContent = records.length;
+
+        if (records.length === 0) {
+            bodyEl.innerHTML = '';
+            emptyEl.style.display = 'block';
+            return;
+        }
+
+        emptyEl.style.display = 'none';
+
+        bodyEl.innerHTML = records.map(record => {
+            const createdAt = record.created_at ? new Date(record.created_at).toLocaleString('zh-CN') : '-';
+            const status = record.all_done ? 'completed' : (record.retry_count > 0 ? 'failed' : 'pending');
+            const statusText = record.status === 'success' ? '已完成' : (record.status === 'failed' ? '失败' : '重复领取');
+            const result = record.result || (record.last_error || '-');
+
+            return `
+                <tr>
+                    <td class="mono">${record.code || '-'}</td>
+                    <td><span class="status-badge status-${status}">${statusText}</span></td>
+                    <td>${createdAt}</td>
+                    <td class="truncate" title="${result}">${result}</td>
+                </tr>
+            `;
+        }).join('');
+    } catch (error) {
+        showMessage('user-details', error.message, 'error');
+    }
+}
+
 // Show user details
 async function showUserDetails(fid) {
     // Hide all views
     document.querySelectorAll('.view').forEach(view => {
         view.classList.remove('active');
     });
-    
+
     // Show user details view
     document.getElementById('user-details-view').classList.add('active');
-    
+
     // Update navigation
     document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.remove('active');
     });
 
-    const contentEl = document.getElementById('user-details-content');
-    contentEl.innerHTML = '<div class="loading">加载中...</div>';
-
-    try {
-        const response = await apiRequest(`/users/${fid}/codes`);
-        const records = response.data.records || [];
-
-        let html = `<h3 style="margin-bottom: 1rem;">用户 ${fid} 的兑换记录 (${records.length})</h3>`;
-
-        if (records.length === 0) {
-            html += '<div class="empty-state">该用户暂无兑换记录</div>';
-        } else {
-            html += `
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>激活码</th>
-                                <th>状态</th>
-                                <th>兑换时间</th>
-                                <th>结果</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-            `;
-
-            records.forEach(record => {
-                const createdAt = record.created_at ? new Date(record.created_at).toLocaleString('zh-CN') : '-';
-                const status = record.all_done ? 'completed' : (record.retry_count > 0 ? 'failed' : 'pending');
-                const statusText = record.status == "success" ? '已完成' : (record.status == 'failed' ? '失败' : '重复领取');
-                const result = record.result || (record.last_error || '-');
-                
-                html += `
-                    <tr>
-                        <td>${record.code || '-'}</td>
-                        <td><span class="status-badge status-${status}">${statusText}</span></td>
-                        <td>${createdAt}</td>
-                        <td>${result}</td>
-                    </tr>
-                `;
-            });
-
-            html += `
-                        </tbody>
-                    </table>
-                </div>
-            `;
-        }
-
-        contentEl.innerHTML = html;
-    } catch (error) {
-        contentEl.innerHTML = '<div class="empty-state">加载失败，请重试</div>';
-        showMessage('user-details', error.message, 'error');
-    }
+    renderUserDetailsShell(fid);
+    await refreshUserDetailsTable(fid);
 }
 
-// Load notifications view
-async function loadNotificationsView() {
+function renderNotificationsShell() {
     const contentEl = document.getElementById('notifications-content');
-    contentEl.innerHTML = '<div class="loading">加载中...</div>';
+    if (isRendered(contentEl)) {
+        return;
+    }
+
+    contentEl.innerHTML = `
+        <div class="section-card">
+            <div class="section-header">
+                <h3>通知历史</h3>
+                <span id="notifications-count" class="count-pill">0</span>
+            </div>
+            <div class="table-container" data-slot="notifications-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>渠道</th>
+                            <th>标题</th>
+                            <th>内容</th>
+                            <th>时间</th>
+                            <th>状态</th>
+                            <th>结果</th>
+                        </tr>
+                    </thead>
+                    <tbody id="notifications-table-body"></tbody>
+                </table>
+                <div id="notifications-empty" class="empty-state">暂无通知记录</div>
+            </div>
+        </div>
+    `;
+
+    markRendered(contentEl);
+}
+
+async function refreshNotificationsTable() {
+    const bodyEl = document.getElementById('notifications-table-body');
+    const emptyEl = document.getElementById('notifications-empty');
+    const countEl = document.getElementById('notifications-count');
+
+    if (!bodyEl || !emptyEl || !countEl) {
+        renderNotificationsShell();
+    }
+
+    const tableBody = document.getElementById('notifications-table-body');
+    const emptyState = document.getElementById('notifications-empty');
+    const counter = document.getElementById('notifications-count');
+
+    if (tableBody && tableBody.children.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="6" class="text-center">加载中...</td></tr>';
+    }
 
     try {
         const response = await apiRequest('/notifications?limit=100');
         const notifications = response.data.notifications || [];
 
-        let html = `<h3 style="margin-bottom: 1rem;">通知历史 (${notifications.length})</h3>`;
+        counter.textContent = notifications.length;
 
         if (notifications.length === 0) {
-            html += '<div class="empty-state">暂无通知记录</div>';
-        } else {
-            html += `
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>渠道</th>
-                                <th>标题</th>
-                                <th>内容</th>
-                                <th>时间</th>
-                                <th>状态</th>
-                                <th>结果</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-            `;
-
-            notifications.forEach(notif => {
-                const createdAt = notif.created_at ? 
-                    new Date(notif.created_at).toLocaleString('zh-CN') : '-';
-
-                const status = notif.status === 'success' ? 'completed' : 'failed';
-                const statusText = notif.status === 'success' ? '成功' : '失败';
-
-                // Truncate long content
-                const content = notif.content.length > 50 ? 
-                    notif.content.substring(0, 50) + '...' : notif.content;
-                const result = notif.result.length > 50 ? 
-                    notif.result.substring(0, 50) + '...' : notif.result;
-
-                html += `
-                    <tr>
-                        <td>${notif.channel || '-'}</td>
-                        <td>${notif.title || '-'}</td>
-                        <td title="${notif.content}">${content}</td>
-                        <td>${createdAt}</td>
-                        <td><span class="status-badge status-${status}">${statusText}</span></td>
-                        <td title="${notif.result}">${result}</td>
-                    </tr>
-                `;
-            });
-
-            html += `
-                        </tbody>
-                    </table>
-                </div>
-            `;
+            tableBody.innerHTML = '';
+            emptyState.style.display = 'block';
+            return;
         }
 
-        contentEl.innerHTML = html;
+        emptyState.style.display = 'none';
+
+        tableBody.innerHTML = notifications.map(notif => {
+            const createdAt = notif.created_at ? new Date(notif.created_at).toLocaleString('zh-CN') : '-';
+            const status = notif.status === 'success' ? 'completed' : 'failed';
+            const statusText = notif.status === 'success' ? '成功' : '失败';
+            const content = notif.content.length > 50 ? `${notif.content.substring(0, 50)}...` : notif.content;
+            const result = notif.result.length > 50 ? `${notif.result.substring(0, 50)}...` : notif.result;
+
+            return `
+                <tr>
+                    <td>${notif.channel || '-'}</td>
+                    <td>${notif.title || '-'}</td>
+                    <td class="truncate" title="${notif.content}">${content}</td>
+                    <td>${createdAt}</td>
+                    <td><span class="status-badge status-${status}">${statusText}</span></td>
+                    <td class="truncate" title="${notif.result}">${result}</td>
+                </tr>
+            `;
+        }).join('');
     } catch (error) {
-        contentEl.innerHTML = '<div class="empty-state">加载失败，请重试</div>';
         showMessage('notifications', error.message, 'error');
     }
+}
+
+// Load notifications view
+async function loadNotificationsView() {
+    renderNotificationsShell();
+    await refreshNotificationsTable();
 }
