@@ -18,7 +18,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime/debug"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -29,6 +28,39 @@ import (
 
 //go:embed static
 var staticFS embed.FS
+
+var mimeTypes = map[string]string{
+	".html":  "text/html",
+	".js":    "application/javascript",
+	".css":   "text/css",
+	".json":  "application/json",
+	".png":   "image/png",
+	".jpg":   "image/jpeg",
+	".jpeg":  "image/jpeg",
+	".gif":   "image/gif",
+	".svg":   "image/svg+xml",
+	".ico":   "image/x-icon",
+	".woff":  "font/woff",
+	".woff2": "font/woff2",
+	".ttf":   "font/ttf",
+	".eot":   "application/vnd.ms-fontobject",
+}
+
+func serveStaticFile(path, contentType string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Writer.Header().Set("Cache-Control", "max-age=300")
+		if contentType != "" {
+			c.Writer.Header().Set("Content-Type", contentType)
+		}
+		c.FileFromFS(path, http.FS(staticFS))
+	}
+}
+
+func serveStaticFileWithMime(path string) gin.HandlerFunc {
+	ext := filepath.Ext(path)
+	contentType := mimeTypes[ext]
+	return serveStaticFile(path, contentType)
+}
 
 func main() {
 	printBuildInfo()
@@ -190,31 +222,17 @@ func setupServer(cfg *config.Config, handlers *api.Handlers, adminHandlers *api.
 	engine.GET("/ip", handlers.GetIP)
 
 	// 管理后台静态文件路由
-	// 处理 /admin 和 /admin/ 重定向
 	engine.GET("/admin", func(c *gin.Context) {
-		// 重定向到登录页（前端会检查token并决定是否跳转到dashboard）
 		c.Redirect(http.StatusFound, "/admin/login.html")
 	})
 
-	// 提供管理后台静态文件 - 使用具体的文件路由
-	engine.GET("/admin/login.html", func(c *gin.Context) {
-		c.Writer.Header().Set("Cache-Control", "max-age="+strconv.Itoa(300))
-		c.FileFromFS("static/admin/login.html", http.FS(staticFS))
-	})
-	engine.GET("/admin/dashboard.html", func(c *gin.Context) {
-		c.Writer.Header().Set("Cache-Control", "max-age="+strconv.Itoa(300))
-		c.FileFromFS("static/admin/dashboard.html", http.FS(staticFS))
-	})
-	engine.GET("/admin/dashboard.js", func(c *gin.Context) {
-		c.Writer.Header().Set("Cache-Control", "max-age="+strconv.Itoa(300))
-		c.Writer.Header().Set("Content-Type", "application/javascript")
-		c.FileFromFS("static/admin/dashboard.js", http.FS(staticFS))
-	})
-	engine.GET("/admin/styles.css", func(c *gin.Context) {
-		c.Writer.Header().Set("Cache-Control", "max-age="+strconv.Itoa(300))
-		c.Writer.Header().Set("Content-Type", "text/css")
-		c.FileFromFS("static/admin/styles.css", http.FS(staticFS))
-	})
+	adminGroup := engine.Group("/admin")
+	{
+		adminGroup.GET("/login.html", serveStaticFile("static/admin/login.html", "text/html"))
+		adminGroup.GET("/dashboard.html", serveStaticFile("static/admin/dashboard.html", "text/html"))
+		adminGroup.GET("/dashboard.js", serveStaticFile("static/admin/dashboard.js", "application/javascript"))
+		adminGroup.GET("/styles.css", serveStaticFile("static/admin/styles.css", "text/css"))
+	}
 
 	// 静态文件路由（必须最后注册，因为是catch-all）
 	engine.NoRoute(func(c *gin.Context) {
@@ -222,8 +240,7 @@ func setupServer(cfg *config.Config, handlers *api.Handlers, adminHandlers *api.
 		if path == "" || path == "/" {
 			c.Redirect(http.StatusFound, "/admin/login.html")
 		} else {
-			c.Writer.Header().Set("Cache-Control", "max-age="+strconv.Itoa(300))
-			c.FileFromFS(filepath.Join("./static", path), http.FS(staticFS))
+			serveStaticFileWithMime(filepath.Join("./static", path))(c)
 		}
 	})
 
