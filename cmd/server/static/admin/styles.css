@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
+
 /* ============================================
    Admin Dashboard - Unified Styles
    ============================================ */
@@ -12,32 +14,47 @@
 }
 
 :root {
-    /* Color Palette */
-    --primary-color: #3498db;
-    --primary-dark: #2980b9;
-    --primary-light: #e8f4f8;
-    --secondary-color: #2c3e50;
-    --secondary-dark: #1a252f;
-    --danger-color: #e74c3c;
-    --danger-dark: #c0392b;
-    --success-color: #27ae60;
-    --success-light: #d4edda;
-    --warning-color: #f39c12;
-    --warning-light: #fff3cd;
-    --info-color: #3498db;
-    --info-light: #cce5ff;
-    
+    /* Typography */
+    --font-sans: 'Fira Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono: 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+
+    /* Brand Palette */
+    --primary-color: #1e40af;
+    --primary-dark: #1e3a8a;
+    --primary-light: #dbeafe;
+    --secondary-color: #3b82f6;
+    --secondary-dark: #2563eb;
+    --cta-color: #f59e0b;
+    --cta-dark: #d97706;
+    --danger-color: #dc2626;
+    --danger-dark: #b91c1c;
+    --success-color: #16a34a;
+    --success-light: #dcfce7;
+    --warning-color: #f59e0b;
+    --warning-light: #fef3c7;
+    --info-color: #3b82f6;
+    --info-light: #dbeafe;
+
     /* Neutral Colors */
-    --gray-50: #f8f9fa;
-    --gray-100: #f5f5f5;
-    --gray-200: #e0e0e0;
-    --gray-300: #ced4da;
-    --gray-400: #95a5a6;
-    --gray-500: #6c757d;
-    --gray-600: #495057;
-    --gray-700: #333;
-    --gray-800: #2c3e50;
-    --gray-900: #1a252f;
+    --gray-50: #f8fafc;
+    --gray-100: #f1f5f9;
+    --gray-200: #e2e8f0;
+    --gray-300: #cbd5e1;
+    --gray-400: #94a3b8;
+    --gray-500: #64748b;
+    --gray-600: #475569;
+    --gray-700: #334155;
+    --gray-800: #1e293b;
+    --gray-900: #0f172a;
+
+    /* Surfaces */
+    --bg-body: #f8fafc;
+    --bg-surface: #ffffff;
+    --bg-surface-muted: #f1f5f9;
+    --border-color: #e2e8f0;
+    --text-primary: #0f172a;
+    --text-secondary: #1e3a8a;
+    --text-muted: #64748b;
     
     /* Spacing */
     --spacing-xs: 0.25rem;
@@ -54,10 +71,10 @@
     --radius-full: 50%;
     
     /* Shadows */
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
-    --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.1);
-    --shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.15);
-    --shadow-xl: 0 10px 40px rgba(0, 0, 0, 0.2);
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.08);
+    --shadow-md: 0 6px 14px rgba(15, 23, 42, 0.12);
+    --shadow-lg: 0 12px 24px rgba(15, 23, 42, 0.14);
+    --shadow-xl: 0 20px 48px rgba(15, 23, 42, 0.18);
     
     /* Transitions */
     --transition-fast: 0.15s ease;
@@ -72,12 +89,17 @@
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
-    background: var(--gray-100);
-    color: var(--gray-700);
+    font-family: var(--font-sans);
+    background: var(--bg-body);
+    color: var(--text-primary);
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+}
+
+.mono {
+    font-family: var(--font-mono);
+    letter-spacing: -0.01em;
 }
 
 /* ============================================
